@@ -1,6 +1,7 @@
 from math import *
 from random import *
 import numpy
+from dataExtract import getData
 
 class KalmanFilter(object):
 
@@ -121,6 +122,7 @@ class CollisionMotionModel(object):
 	def __init__(self):
 		super(CollisionMotionModel, self).__init__()
 
+    #motion vector of bot assumed to be reflected by the object with a considerable amount of orientation noise
 	def update(self, position):
 		pass
 
@@ -145,6 +147,7 @@ class Tracker(object):
 	"""The main tracking function... Takes the data points and figures out the 
 	    world and the motion of the hexbug. """
 	def trackRobot(self, data):
+		print data 
 		forward = ForwardMotionModel(self.worldDimensions)
 		collision = CollisionMotionModel()
 
@@ -214,6 +217,9 @@ class Tracker(object):
 
 
 """Main Program"""
+#get the centroid data 
+#data = getData('hexbug-testing_video.mp4')
+
 tracker = Tracker([1280, 1024])
 guess = tracker.trackRobot([[x * 10,x * 10] for x in range(10)])
 print "Guess next location: ", guess
