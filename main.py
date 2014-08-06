@@ -1,12 +1,11 @@
 from math import *
 from random import *
 import numpy
-from dataExtract import getData
+#from dataExtract import getData
 
-class KalmanFilter(object):
+class KalmanFilter:
 
-	def __init__(self, worldDimensions, uncertainty=0.1):
-		super(KalmanFilter, self).__init__()
+	def __init__(self, worldDimensions=[0,0], uncertainty=0.1):
 		width = worldDimensions[0]
 		height = worldDimensions[1]
 
@@ -16,11 +15,24 @@ class KalmanFilter(object):
 		self.R =  numpy.matrix([[uncertainty, 0.], [0., uncertainty]]) # measurement uncertainty
 		self.I =  numpy.matrix([[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.], [0., 0., 0., 1.]]) # identity numpy.matrix
 
-		self.x = numpy.matrix([[randint(0, width)], [randint(0, height)], [0.], [0.]]) # initial state (location and velocity)
-		self.u = numpy.matrix([[random() * 4 - 2], [random() * 4 - 2], [0.], [0.]]) # external motion
+		#self.x = numpy.matrix([[randint(0, width)], [randint(0, height)], [0.], [0.]]) # initial state (location and velocity)
+		#self.u = numpy.matrix([[random() * 4 - 2], [random() * 4 - 2], [0.], [0.]]) # external motion
 
 		self.u = numpy.matrix([[0.], [0.], [0.], [0.]])
 		self.x = numpy.matrix([[0.], [0.], [0.], [0.]])
+
+		self.count = 0
+
+	def clone(self, other):
+		self.P = numpy.matrix(other.P)
+		self.F = numpy.matrix(other.F)
+		self.H = numpy.matrix(other.H)
+		self.R = numpy.matrix(other.R)
+		self.I = numpy.matrix(other.I)
+		self.u = numpy.matrix(other.u)
+		self.x = numpy.matrix(other.x)
+
+		self.count = other.count
 
 	def updateFilter(self, measurement):
 
@@ -35,16 +47,26 @@ class KalmanFilter(object):
 		self.K = self.P * numpy.transpose(self.H) * numpy.linalg.inv(self.S)
 		self.x = self.x + (self.K * self.y)
 		self.P = (self.I - (self.K * self.H)) * self.P
-        
+
+		self.count += 1
+
+	def updateVelocityVectors(self, dx, dy):
+		self.x = numpy.matrix([[1.,0.,0.,0.],[0.,1.,0.,0.],[0.,0.,0.,0.],[0.,0.,0.,0.]]) * self.x
+		self.x = self.x + numpy.matrix([[0.],[0.],[dx],[dy]])
 
 	def measurement_prob(self, measurement):
 		new_x = self.x.tolist()[0][0] + self.x.tolist()[2][0]
 		new_y = self.x.tolist()[1][0] + self.x.tolist()[3][0]
 
-		return self.distanceBetween([new_x, new_y], measurement)
+		distance = self.distanceBetween([new_x, new_y], measurement)
+
+		return 1.0 / (distance ** 2)
 
 	def getPrediction(self):
 		return self.x
+
+	def getVelocityVectors(self):
+		return [self.x.tolist()[2][0], self.x.tolist()[3][0]]
 
 	def distanceBetween(self, point1, point2):
 		"""Computes distance between point1 and point2. Points are (x, y) pairs."""
@@ -52,15 +74,11 @@ class KalmanFilter(object):
 		x2, y2 = point2
 		return sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
-class ForwardMotionModel(object):
-	
-	previousParticles = []
-	N = 0
-	worldDimensions = ()
+class ForwardMotionModel:
 
 	"""Represents the motion model for when the hexbug is moving forward"""
 	def __init__(self, worldDimensions, numberOfParticles=100):
-		super(ForwardMotionModel, self).__init__()
+		self.previousParticles = []
 		self.N = numberOfParticles
 		self.worldDimensions = worldDimensions
 	
@@ -73,8 +91,6 @@ class ForwardMotionModel(object):
 			for i in range(self.N):
 				r = KalmanFilter(self.worldDimensions)
 				self.previousParticles.append(r)
-
-		newParticles = []
 
 		# --------
 		#
@@ -97,7 +113,9 @@ class ForwardMotionModel(object):
 			while beta > w[index]:
 				beta -= w[index]
 				index = (index + 1) % self.N
-			p3.append(self.previousParticles[index])
+			kf = KalmanFilter()
+			kf.clone(self.previousParticles[index])
+			p3.append(kf)
 
 		self.previousParticles = p3
 	    
@@ -111,11 +129,17 @@ class ForwardMotionModel(object):
 			next_y = p.getPrediction().tolist()[1][0] + p.getPrediction().tolist()[3][0]
 			sum_x += next_x
 			sum_y += next_y
-			print p.getPrediction()
 		return (sum_x / len(self.previousParticles), sum_y / len(self.previousParticles))
 		
 	def getForwardSpeed(self):
 		pass
+
+	def collide(self, collisionModel, wall):
+		for particle in self.previousParticles:
+			[dx, dy] = particle.getVelocityVectors()
+			[dx, dy] = collisionModel.update(dx, dy, wall)
+			particle.updateVelocityVectors(dx, dy)
+
 
 
 class CollisionMotionModel(object):
@@ -123,12 +147,12 @@ class CollisionMotionModel(object):
 		super(CollisionMotionModel, self).__init__()
 
     #motion vector of bot assumed to be reflected by the object with a considerable amount of orientation noise
-	def update(self, position):
-		pass
+	def update(self, dx, dy, wall):
+		return [0., 0.]
 
 
 
-class Tracker(object):
+class Tracker:
 	"""This is the class that tracks the hexbug"""
 	# Instance Variables
 	leftWall   = 0  # pixel representing the x value of the left wall  
@@ -162,8 +186,7 @@ class Tracker(object):
 			print 'Collision Detected: ', self.didCollide(previousLocation, location), location
 			
 			if self.didCollide(previousLocation, location) :
-				collision.update(location)
-				formard = ForwardMotionModel(self.worldDimensions)
+				forward.collide(collision, None)
 			
 			else : 
 				forward.update(location)
@@ -219,8 +242,12 @@ class Tracker(object):
 """Main Program"""
 #get the centroid data 
 #data = getData('hexbug-testing_video.mp4')
-
+data = [[669, 420], [-1, -1], [667, 414],[659, 418],[668, 415],[-1, -1],[667, 412],[-1, -1],[-1, -1],[680, 402],[674, 398],[676, 392],[676, 385],[676, 378],[677, 370],
+		[680, 348],[678, 352],[679, 344],[684, 344],[684, 316],[681, 314],[680, 305],[684, 311],[680, 288],[681, 280],[682, 270],[682, 260],[683, 252],[-1, -1],[683, 232],[681, 222],
+		[679, 214],[678, 207],[676, 199],[673, 189],[672, 182],[670, 174],[668, 166],[665, 156],[663, 147],[660, 139],[657, 129],[653, 121],[649, 112],[644, 104],[639, 96],[636, 93],
+		[632, 91],[627, 91],[619, 92],[610, 92],[601, 92],[591, 91],[580, 91],[571, 92],[561, 92],[552, 92],[543, 92],[533, 93],[523, 91],[513, 90],[504, 89],[494, 87],
+		[486, 89],[478, 90],[469, 91],[461, 93],[453, 96],[444, 99]]
 tracker = Tracker([1280, 1024])
-guess = tracker.trackRobot([[x * 10,x * 10] for x in range(10)])
+guess = tracker.trackRobot(data)
 print "Guess next location: ", guess
-print "Actual next location: ", [292, 418]
+print "Actual next location: ", [435, 103]
