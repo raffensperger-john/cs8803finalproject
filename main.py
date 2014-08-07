@@ -6,21 +6,45 @@ import matplotlib.pyplot as plt
 
 class KalmanFilter:
 
+	collisionUncertainty = 300.
+
 	def __init__(self, worldDimensions=[0,0], uncertainty=0.1):
 		width = worldDimensions[0]
 		height = worldDimensions[1]
 
-		self.P =  numpy.matrix([[1000., 0., 0., 0.], [0., 1000., 0., 0.], [0., 0., 1000., 0.], [0., 0., 0., 1000.]]) # initial uncertainty
-		self.F =  numpy.matrix([[1., 0., 1.0, 0.], [0., 1., 0., 1.0], [0., 0., 1., 0.], [0., 0., 0., 1.]]) # next state function
-		self.H =  numpy.matrix([[1., 0., 0., 0.], [0., 1., 0., 0.]]) # measurement function
-		self.R =  numpy.matrix([[uncertainty, 0.], [0., uncertainty]]) # measurement uncertainty
-		self.I =  numpy.matrix([[1., 0., 0., 0.], [0., 1., 0., 0.], [0., 0., 1., 0.], [0., 0., 0., 1.]]) # identity numpy.matrix
+		self.P =  numpy.matrix([[1000., 0., 0., 0.], 
+								[0., 1000., 0., 0.], 
+								[0., 0., 1000., 0.], 
+								[0., 0., 0., 1000.]]) # initial uncertainty
 
-		#self.x = numpy.matrix([[randint(0, width)], [randint(0, height)], [0.], [0.]]) # initial state (location and velocity)
-		#self.u = numpy.matrix([[random() * 4 - 2], [random() * 4 - 2], [0.], [0.]]) # external motion
+		self.F =  numpy.matrix([[1., 0., 1.0, 0.], 
+								[0., 1., 0., 1.0], 
+								[0., 0., 1., 0.], 
+								[0., 0., 0., 1.]]) # next state function
 
-		self.u = numpy.matrix([[0.], [0.], [0.], [0.]])
-		self.x = numpy.matrix([[0.], [0.], [0.], [0.]])
+		self.H =  numpy.matrix([[1., 0., 0., 0.], 
+								[0., 1., 0., 0.]]) # measurement function
+
+		self.R =  numpy.matrix([[uncertainty, 0.], 
+								[0., uncertainty]]) # measurement uncertainty
+
+		self.I =  numpy.matrix([[1., 0., 0., 0.], 
+								[0., 1., 0., 0.], 
+								[0., 0., 1., 0.], 
+								[0., 0., 0., 1.]]) # identity matrix
+
+		self.x = numpy.matrix([[randint(0, width)], 
+								[randint(0, height)], 
+								[0.], 
+								[0.]]) # initial state (location and velocity)
+
+		self.u = numpy.matrix([[random() * 4 - 2], 
+								[random() * 4 - 2], 
+								[0.], 
+								[0.]]) # external motion
+
+		#self.u = numpy.matrix([[0.], [0.], [0.], [0.]])
+		#self.x = numpy.matrix([[0.], [0.], [0.], [0.]])
 
 		self.count = 0
 
@@ -52,8 +76,19 @@ class KalmanFilter:
 		self.count += 1
 
 	def updateVelocityVectors(self, dx, dy):
-		self.x = numpy.matrix([[1.,0.,0.,0.],[0.,1.,0.,0.],[0.,0.,0.,0.],[0.,0.,0.,0.]]) * self.x
+		# Zero out the existing velocity vectors
+		self.x = numpy.matrix([[1.,0.,0.,0.],
+							   [0.,1.,0.,0.],
+							   [0.,0.,0.,0.],
+							   [0.,0.,0.,0.]]) * self.x
+		# Add in the new ones
 		self.x = self.x + numpy.matrix([[0.],[0.],[dx],[dy]])
+		
+		# Add in some uncertainty to the velocity values
+		self.P = self.P + numpy.matrix([[0., 0., 0., 0.],
+										[0., 0., 0., 0.],
+										[0., 0., self.collisionUncertainty, 0.],
+										[0., 0., 0., self.collisionUncertainty]])
 
 	def measurement_prob(self, measurement):
 		new_x = self.x.tolist()[0][0] + self.x.tolist()[2][0]
@@ -76,6 +111,8 @@ class KalmanFilter:
 		return sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 class ForwardMotionModel:
+
+	purgeBadAndAddNew = False
 
 	"""Represents the motion model for when the hexbug is moving forward"""
 	def __init__(self, worldDimensions, numberOfParticles=100):
@@ -109,7 +146,12 @@ class ForwardMotionModel:
 		index = int(random() * self.N)
 		beta = 0.0
 		mw = max(w)
-		for i in range(self.N):
+
+		resample = self.N
+		if self.purgeBadAndAddNew:
+			resample = self.N * 0.70
+
+		for i in range(resample):
 			beta += random() * 2.0 * mw
 			while beta > w[index]:
 				beta -= w[index]
@@ -140,6 +182,7 @@ class ForwardMotionModel:
 			[dx, dy] = particle.getVelocityVectors()
 			[dx, dy] = collisionModel.update(dx, dy, wall)
 			particle.updateVelocityVectors(dx, dy)
+		self.purgeBadAndAddNew = True
 
 
 
@@ -168,10 +211,10 @@ class Tracker:
 	worldDimensions = []
 
 	def __init__(self, worldDimensions):
-		self.leftWall = (worldDimensions[0]/2,worldDimensions[1]/2) 
-		self.rightWall = (worldDimensions[0]/2,worldDimensions[1]/2)
-		self.topWall = (worldDimensions[0]/2,worldDimensions[1]/2)
-		self.bottomWall = (worldDimensions[0]/2,worldDimensions[1]/2)
+		self.leftWall = [worldDimensions[0]/2,worldDimensions[1]/2]
+		self.rightWall = [worldDimensions[0]/2,worldDimensions[1]/2]
+		self.topWall = [worldDimensions[0]/2,worldDimensions[1]/2]
+		self.bottomWall = [worldDimensions[0]/2,worldDimensions[1]/2]
 		self.worldDimensions = worldDimensions
 
 	"""The main tracking function... Takes the data points and figures out the 
@@ -239,25 +282,25 @@ class Tracker:
 		if previousLocation[0] < location[0]:
 			# The bug is moving to the right
 			if location[0] > self.rightWall:
-				self.rightWall = location #location[0]
+				self.rightWall[0] = location[0] #location[0]
 				print "right wall", self.rightWall
 
 		if previousLocation[0] > location[0]:
 			# The bug is moving to the left
 			if location[0] < self.leftWall:
-				self.leftWall = location #location[0]
+				self.leftWall[0] = location[0] #location[0]
 				print "left wall", self.leftWall
 
 		if previousLocation[1] < location[1]:
 			# The bug is moving down
 			if location[1] > self.bottomWall:
-				self.bottomWall = location #location[1]
+				self.bottomWall[1] = location[1] #location[1]
 				print "bottom wall", self.bottomWall
 
 		if previousLocation[1] > location[1]:
 			# The bug is moving up
 			if location[1] < self.topWall:
-				self.topWall = location #location[1]
+				self.topWall[1] = location[1] #location[1]
 				print "top wall", self.topWall
 
 	def getWallCoordinates(self):
@@ -273,10 +316,14 @@ data = [[669, 420], [-1, -1], [667, 414],[659, 418],[668, 415],[-1, -1],[667, 41
 		[632, 91],[627, 91],[619, 92],[610, 92],[601, 92],[591, 91],[580, 91],[571, 92],[561, 92],[552, 92],[543, 92],[533, 93],[523, 91],[513, 90],[504, 89],[494, 87],
 		[486, 89],[478, 90],[469, 91],[461, 93],[453, 96],[444, 99]]
 
-plt.plot(*zip(*data))
-plt.show()
+# filter out the bad points (really just for the graph)
+data = [x for x in data if x != [-1,-1]]
 
 tracker = Tracker([1280, 1024])
 guess = tracker.trackRobot(data)
 print "Guess next location: ", guess
 print "Actual next location: ", [435, 103]
+
+plt.plot(*zip(*data))
+plt.gca().invert_yaxis()
+plt.show()
