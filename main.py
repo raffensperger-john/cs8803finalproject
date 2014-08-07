@@ -357,7 +357,7 @@ data = getData('hexbug-testing_video.mp4')
 # filter out the bad points (really just for the graph)
 data = [x for x in data if x != [-1,-1]]
 
-testSteps = 30
+testSteps = 10
 testData = data[0:len(data)-testSteps]
 predictData = data[len(testData):len(data)]
 
