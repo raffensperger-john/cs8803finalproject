@@ -2,7 +2,7 @@ from math import *
 from random import *
 import numpy
 import matplotlib.pyplot as plt
-#from dataExtract import getData
+from dataExtract import getData
 
 class KalmanFilter:
 
@@ -160,6 +160,7 @@ class ForwardMotionModel:
 		if self.purgeBadAndAddNew:
 			resample = self.N * 0.70
 			resample = int (resample)
+			self.purgeBadAndAddNew = False
 
 		# Resample the existing particles
 		for i in range(resample):
@@ -209,7 +210,7 @@ class CollisionMotionModel(object):
 
     #motion vector of bot assumed to be reflected by the object with a considerable amount of orientation noise
 	def update(self, dx, dy, wall):
-		print dx, dy
+		#print dx, dy
 		if wall == 0  or wall == 1: #left or right wall 
 			dx *= -1
 		else : #top or bottom wall 
@@ -227,6 +228,9 @@ class Tracker:
 	bottomWall = 0  # pixel representing the y value of the bottom wall
 	worldDimensions = []
 
+	lastCollision = 0
+	stepCount = 0
+
 	def __init__(self, worldDimensions):
 		self.leftWall = [worldDimensions[0]/2,worldDimensions[1]/2]
 		self.rightWall = [worldDimensions[0]/2,worldDimensions[1]/2]
@@ -236,32 +240,48 @@ class Tracker:
 
 	"""The main tracking function... Takes the data points and figures out the 
 	    world and the motion of the hexbug. """
-	def trackRobot(self, data):
-		print data 
+	def trackRobot(self, data, numStepsInFuture=1):
+		#print data 
 		forward = ForwardMotionModel(self.worldDimensions)
 		collision = CollisionMotionModel()
 
+		"""Train the filters"""
 		previousLocation = [0, 0]
 		for location in data:
-			if location == [-1, -1]:
-				print 'Bad data'
-				continue
-				
-			self.updateWallCoordinates(previousLocation, location)
-
-			print 'Collision Detected: ', self.didCollide(previousLocation, location), location
-			
-			if self.didCollide(previousLocation, location) :
-				wall = self.getWall(location)
-				print "wall " , wall 
-				forward.collide(collision, wall)
-			
-			else : 
-				forward.update(location)
-
+			self.doTrackingUpdate(previousLocation, location, forward, collision)
 			previousLocation = location
 
-		return forward.getNextLocation()
+
+		"""Do the prediction"""
+		estimatedTrack = []
+		for i in range(numStepsInFuture):
+			guess = forward.getNextLocation()
+			self.doTrackingUpdate(previousLocation, guess, forward, collision, withWalls=True)
+			previousLocation = guess
+			estimatedTrack.append(guess)
+
+		return estimatedTrack
+
+	def doTrackingUpdate(self, previousLocation, location, forward, collision, withWalls=False):
+		self.stepCount += 1
+		if location == [-1, -1]:
+			#print 'Bad data'
+			pass
+		else :	
+			if withWalls == False:
+				self.updateWallCoordinates(previousLocation, location)
+
+			collisionDetected = self.didCollide(previousLocation, location, withWalls)
+			#print 'Collision Detected: ', collisionDetected, location
+			
+			if collisionDetected and self.stepCount - self.lastCollision > 3:
+				wall = self.getWall(location)
+				#print "wall " , wall 
+				# Avoid repeat collision detections
+				forward.collide(collision, wall)
+				self.lastCollision = self.stepCount
+			else : 
+				forward.update(location)
 
 	def getWall(self, location):
 		
@@ -276,13 +296,15 @@ class Tracker:
 		return wall
 
 
-	def didCollide(self, previousLocation, location):
+	def didCollide(self, previousLocation, location, withWalls=False):
 		
-		#if location[1] >= self.bottomWall or \
-		#   location[1] <= self.topWall or \
-		#   location[0] >= self.rightWall or \
-		#   location[0] <= self.leftWall:
-		#   return True
+		if withWalls:
+			if location[1] >= self.bottomWall[1] or \
+				location[1] <= self.topWall[1] or \
+				location[0] >= self.rightWall[0] or \
+				location[0] <= self.leftWall[0]:
+				print 'Collision', self.bottomWall, self.topWall, self.rightWall, self.leftWall
+				return True
 
 		if self.distanceBetween(previousLocation, location) <= 5:
 			return True
@@ -296,51 +318,57 @@ class Tracker:
 	    return sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
 	def updateWallCoordinates(self, previousLocation, location):
-		if previousLocation[0] < location[0]:
-			# The bug is moving to the right
-			if location[0] > self.rightWall:
-				self.rightWall[0] = location[0] #location[0]
-				print "right wall", self.rightWall
+		if location[0] > self.rightWall[0]:
+			self.rightWall[0] = location[0] #location[0]
+			#print "right wall", self.rightWall
 
-		if previousLocation[0] > location[0]:
-			# The bug is moving to the left
-			if location[0] < self.leftWall:
-				self.leftWall[0] = location[0] #location[0]
-				print "left wall", self.leftWall
+		if location[0] < self.leftWall[0]:
+			self.leftWall[0] = location[0] #location[0]
+			#print "left wall", self.leftWall
 
-		if previousLocation[1] < location[1]:
-			# The bug is moving down
-			if location[1] > self.bottomWall:
-				self.bottomWall[1] = location[1] #location[1]
-				print "bottom wall", self.bottomWall
+		if location[1] > self.bottomWall[1]:
+			self.bottomWall[1] = location[1] #location[1]
+			#print "bottom wall", self.bottomWall
 
-		if previousLocation[1] > location[1]:
-			# The bug is moving up
-			if location[1] < self.topWall:
-				self.topWall[1] = location[1] #location[1]
-				print "top wall", self.topWall
+		if location[1] < self.topWall[1]:
+			self.topWall[1] = location[1] #location[1]
+			#print "top wall", self.topWall
 
 	def getWallCoordinates(self):
 		return (self.leftWall, self.rightWall, self.topWall, self.bottomWall)
 
 
 """Main Program"""
+
+"""Test Set"""
+#data = [[669, 420], [-1, -1], [667, 414],[659, 418],[668, 415],[-1, -1],[667, 412],[-1, -1],[-1, -1],[680, 402],[674, 398],[676, 392],[676, 385],[676, 378],[677, 370],
+#		[680, 348],[678, 352],[679, 344],[684, 344],[684, 316],[681, 314],[680, 305],[684, 311],[680, 288],[681, 280],[682, 270],[682, 260],[683, 252],[-1, -1],[683, 232],[681, 222],#
+#		[679, 214],[678, 207],[676, 199],[673, 189],[672, 182],[670, 174],[668, 166],[665, 156],[663, 147],[660, 139],[657, 129],[653, 121],[649, 112],[644, 104],[639, 96],[636, 93],
+#		[632, 91],[627, 91],[619, 92],[610, 92],[601, 92],[591, 91],[580, 91],[571, 92],[561, 92],[552, 92],[543, 92],[533, 93],[523, 91],[513, 90],[504, 89],[494, 87],
+#		[486, 89],[478, 90],[469, 91],[461, 93],[453, 96],[444, 99]]
+#testSteps = 1
+#testData = data
+#predictData = [[435, 103]]
+
+"""Real test data"""
 #get the centroid data 
-#data = getData('hexbug-testing_video.mp4')
-data = [[669, 420], [-1, -1], [667, 414],[659, 418],[668, 415],[-1, -1],[667, 412],[-1, -1],[-1, -1],[680, 402],[674, 398],[676, 392],[676, 385],[676, 378],[677, 370],
-		[680, 348],[678, 352],[679, 344],[684, 344],[684, 316],[681, 314],[680, 305],[684, 311],[680, 288],[681, 280],[682, 270],[682, 260],[683, 252],[-1, -1],[683, 232],[681, 222],
-		[679, 214],[678, 207],[676, 199],[673, 189],[672, 182],[670, 174],[668, 166],[665, 156],[663, 147],[660, 139],[657, 129],[653, 121],[649, 112],[644, 104],[639, 96],[636, 93],
-		[632, 91],[627, 91],[619, 92],[610, 92],[601, 92],[591, 91],[580, 91],[571, 92],[561, 92],[552, 92],[543, 92],[533, 93],[523, 91],[513, 90],[504, 89],[494, 87],
-		[486, 89],[478, 90],[469, 91],[461, 93],[453, 96],[444, 99]]
+data = getData('hexbug-testing_video.mp4')
 
 # filter out the bad points (really just for the graph)
 data = [x for x in data if x != [-1,-1]]
 
-tracker = Tracker([1280, 1024])
-guess = tracker.trackRobot(data)
+testSteps = 30
+testData = data[0:len(data)-testSteps]
+predictData = data[len(testData):len(data)]
+
+tracker = Tracker([854, 480])
+guess = tracker.trackRobot(testData, testSteps)
+print "Test Data: ", testData
 print "Guess next location: ", guess
-print "Actual next location: ", [435, 103]
+print "Actual next location: ", predictData
 
 plt.plot(*zip(*data))
+plt.plot(*zip(*predictData))
+plt.plot(*zip(*guess))
 plt.gca().invert_yaxis()
 plt.show()
