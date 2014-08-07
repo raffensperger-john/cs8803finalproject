@@ -3,7 +3,7 @@ import numpy as np
 
 def nothing(x):
     pass
-def getData(videoName):
+def getData(videoName,data):
     cap = cv2.VideoCapture(videoName)
     fout = open('centroid_data','w')
     fout.write('[')
@@ -75,8 +75,10 @@ def getData(videoName):
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 centroid.append([cx,cy])
+                data.append([cx,cy])
             else:
                 centroid.append([-1,-1])
+                data.append([-1,-1])
 
     ##    k = cv2.waitKey(5) & 0xFF
     ##    if k == 27:
@@ -97,6 +99,5 @@ def getData(videoName):
     cap.release()
     cv2.destroyAllWindows()
 
-    print "CENTROID"
-    return centroid
+    return data
 

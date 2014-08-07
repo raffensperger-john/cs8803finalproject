@@ -105,6 +105,9 @@ class KalmanFilter:
 
 		distance = self.distanceBetween([new_x, new_y], measurement)
 
+		if distance == 0.0 :  
+			distance = 0.0000000001
+
 		return 1.0 / (distance ** 2)
 
 	def getPrediction(self):
@@ -210,7 +213,6 @@ class CollisionMotionModel(object):
 
     #motion vector of bot assumed to be reflected by the object with a considerable amount of orientation noise
 	def update(self, dx, dy, wall):
-		#print dx, dy
 		if wall == 0  or wall == 1: #left or right wall 
 			dx *= -1
 		else : #top or bottom wall 
@@ -338,6 +340,15 @@ class Tracker:
 		return (self.leftWall, self.rightWall, self.topWall, self.bottomWall)
 
 
+#write the predictions into output text file
+def writeDatatoFile(filename, data):
+	file = open(filename, "w")
+
+	file.write("\n".join(str(i) for i in data))
+
+	file.close()
+
+
 """Main Program"""
 
 """Test Set"""
@@ -351,21 +362,28 @@ class Tracker:
 #predictData = [[435, 103]]
 
 """Real test data"""
-#get the centroid data 
-data = getData('hexbug-testing_video.mp4')
+
+data=[]
+#get the centroid data from video
+data = getData('hexbug-testing_video.mp4',data)
 
 # filter out the bad points (really just for the graph)
-data = [x for x in data if x != [-1,-1]]
+#data = [x for x in data if x != [-1,-1]]
 
-testSteps = 10
+testSteps = 63
 testData = data[0:len(data)-testSteps]
 predictData = data[len(testData):len(data)]
 
 tracker = Tracker([854, 480])
 guess = tracker.trackRobot(testData, testSteps)
-print "Test Data: ", testData
+print "Test Data: ", testData 
+print "\n"
 print "Guess next location: ", guess
+print "\n"
 print "Actual next location: ", predictData
+
+writeDatatoFile("actual.txt", predictData)
+writeDatatoFile("predictions.txt", guess)
 
 plt.plot(*zip(*data))
 plt.plot(*zip(*predictData))
