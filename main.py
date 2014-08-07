@@ -59,6 +59,15 @@ class KalmanFilter:
 
 		self.count = other.count
 
+	def setPosition(self, x, y):
+		# Zero out the existing positions
+		self.x = numpy.matrix([[0.,0.,0.,0.],
+							   [0.,0.,0.,0.],
+							   [0.,0.,1.,0.],
+							   [0.,0.,0.,1.]]) * self.x
+		# Add in the new ones
+		self.x = self.x + numpy.matrix([[x],[y],[0.],[0.]])
+
 	def updateFilter(self, measurement):
 
 		# prediction
@@ -150,7 +159,9 @@ class ForwardMotionModel:
 		resample = self.N
 		if self.purgeBadAndAddNew:
 			resample = self.N * 0.70
+			resample = int (resample)
 
+		# Resample the existing particles
 		for i in range(resample):
 			beta += random() * 2.0 * mw
 			while beta > w[index]:
@@ -158,6 +169,12 @@ class ForwardMotionModel:
 				index = (index + 1) % self.N
 			kf = KalmanFilter()
 			kf.clone(self.previousParticles[index])
+			p3.append(kf)
+
+		# If some were purged, replace them with new random particles
+		for i in range(resample, self.N):
+			kf = KalmanFilter(self.worldDimensions)
+			kf.setPosition(position[0], position[1])
 			p3.append(kf)
 
 		self.previousParticles = p3
