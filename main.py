@@ -1,6 +1,7 @@
 from math import *
 from random import *
 import numpy
+import matplotlib.pyplot as plt
 #from dataExtract import getData
 
 class KalmanFilter:
@@ -148,8 +149,13 @@ class CollisionMotionModel(object):
 
     #motion vector of bot assumed to be reflected by the object with a considerable amount of orientation noise
 	def update(self, dx, dy, wall):
-		return [0., 0.]
+		print dx, dy
+		if wall == 0  or wall == 1: #left or right wall 
+			dx *= -1
+		else : #top or bottom wall 
+			dy *= -1
 
+		return [dx, dy]
 
 
 class Tracker:
@@ -162,10 +168,10 @@ class Tracker:
 	worldDimensions = []
 
 	def __init__(self, worldDimensions):
-		self.leftWall = worldDimensions[0]/2
-		self.rightWall = worldDimensions[0]/2
-		self.topWall = worldDimensions[1]/2
-		self.bottomWall = worldDimensions[1]/2
+		self.leftWall = (worldDimensions[0]/2,worldDimensions[1]/2) 
+		self.rightWall = (worldDimensions[0]/2,worldDimensions[1]/2)
+		self.topWall = (worldDimensions[0]/2,worldDimensions[1]/2)
+		self.bottomWall = (worldDimensions[0]/2,worldDimensions[1]/2)
 		self.worldDimensions = worldDimensions
 
 	"""The main tracking function... Takes the data points and figures out the 
@@ -186,7 +192,9 @@ class Tracker:
 			print 'Collision Detected: ', self.didCollide(previousLocation, location), location
 			
 			if self.didCollide(previousLocation, location) :
-				forward.collide(collision, None)
+				wall = self.getWall(location)
+				print "wall " , wall 
+				forward.collide(collision, wall)
 			
 			else : 
 				forward.update(location)
@@ -194,6 +202,19 @@ class Tracker:
 			previousLocation = location
 
 		return forward.getNextLocation()
+
+	def getWall(self, location):
+		
+		r = self.distanceBetween(location, self.rightWall)
+		l = self.distanceBetween(location, self.leftWall)
+		t = self.distanceBetween(location, self.topWall)
+		b = self.distanceBetween(location, self.bottomWall)
+
+		wallDistance = [r,l,t,b]
+		wall = wallDistance.index(min(wallDistance))
+
+		return wall
+
 
 	def didCollide(self, previousLocation, location):
 		
@@ -218,22 +239,26 @@ class Tracker:
 		if previousLocation[0] < location[0]:
 			# The bug is moving to the right
 			if location[0] > self.rightWall:
-				self.rightWall = location[0]
+				self.rightWall = location #location[0]
+				print "right wall", self.rightWall
 
 		if previousLocation[0] > location[0]:
 			# The bug is moving to the left
 			if location[0] < self.leftWall:
-				self.leftWall = location[0]
+				self.leftWall = location #location[0]
+				print "left wall", self.leftWall
 
 		if previousLocation[1] < location[1]:
 			# The bug is moving down
 			if location[1] > self.bottomWall:
-				self.bottomWall = location[1]
+				self.bottomWall = location #location[1]
+				print "bottom wall", self.bottomWall
 
 		if previousLocation[1] > location[1]:
 			# The bug is moving up
 			if location[1] < self.topWall:
-				self.topWall = location[1]
+				self.topWall = location #location[1]
+				print "top wall", self.topWall
 
 	def getWallCoordinates(self):
 		return (self.leftWall, self.rightWall, self.topWall, self.bottomWall)
@@ -247,6 +272,10 @@ data = [[669, 420], [-1, -1], [667, 414],[659, 418],[668, 415],[-1, -1],[667, 41
 		[679, 214],[678, 207],[676, 199],[673, 189],[672, 182],[670, 174],[668, 166],[665, 156],[663, 147],[660, 139],[657, 129],[653, 121],[649, 112],[644, 104],[639, 96],[636, 93],
 		[632, 91],[627, 91],[619, 92],[610, 92],[601, 92],[591, 91],[580, 91],[571, 92],[561, 92],[552, 92],[543, 92],[533, 93],[523, 91],[513, 90],[504, 89],[494, 87],
 		[486, 89],[478, 90],[469, 91],[461, 93],[453, 96],[444, 99]]
+
+plt.plot(*zip(*data))
+plt.show()
+
 tracker = Tracker([1280, 1024])
 guess = tracker.trackRobot(data)
 print "Guess next location: ", guess
