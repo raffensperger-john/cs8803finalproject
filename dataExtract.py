@@ -1,3 +1,7 @@
+# Script taken from resources in T-square to read in centroid data from a video file. 
+# Modified to accept an array from function and keep track of data for entire video appending 
+# points to this array. Data is returned to function that called this method. 
+
 import cv2
 import numpy as np
 
@@ -75,10 +79,10 @@ def getData(videoName,data):
                 cx = int(M['m10']/M['m00'])
                 cy = int(M['m01']/M['m00'])
                 centroid.append([cx,cy])
-                data.append([cx,cy])
+                data.append([cx,cy]) #add data point to array to pass to main method
             else:
-                centroid.append([-1,-1])
-                data.append([-1,-1])
+                centroid.append([-1,-1]) 
+                data.append([-1,-1])    #add error data to array to pass to main method
 
     ##    k = cv2.waitKey(5) & 0xFF
     ##    if k == 27:
@@ -99,5 +103,5 @@ def getData(videoName,data):
     cap.release()
     cv2.destroyAllWindows()
 
-    return data
+    return data #return centroid data to be used for tracking and prediction
 
