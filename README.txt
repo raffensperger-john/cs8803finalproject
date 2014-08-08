@@ -16,6 +16,8 @@ Included Libraries and Versions:
 
 Python - 2.7
 Opencv - 2.4.9
+Numpy
+Matplotlib
 
 
 Execution: 
