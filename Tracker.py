@@ -20,6 +20,7 @@ class Tracker:
 	collisionBuffer = 10
 
 	def __init__(self, worldDimensions):
+		#initialize walls in the center until hexbug is able to locate them 
 		self.leftWall = [worldDimensions[0]/2,worldDimensions[1]/2]
 		self.rightWall = [worldDimensions[0]/2,worldDimensions[1]/2]
 		self.topWall = [worldDimensions[0]/2,worldDimensions[1]/2]
@@ -30,16 +31,19 @@ class Tracker:
 	    world and the motion of the hexbug. """
 	def trackRobot(self, data, numStepsInFuture=1):
 		#print data 
+
+		#call and set motion models
 		forward = ForwardMotionModel(self.worldDimensions, self, self.numberOfParticles)
 		collision = CollisionMotionModel()
 
+		# use data read from file to train filters for predictions
 		print 'Training the filters...'
 		previousLocation = [0, 0]
 		for location in data:
 			self.doTrackingUpdate(previousLocation, location, forward, collision)
 			previousLocation = location
 
-
+		#predict next steps 
 		print 'Predicting ', numStepsInFuture, ' steps ahead'
 		estimatedTrack = [previousLocation]
 		for i in range(numStepsInFuture):
@@ -59,18 +63,20 @@ class Tracker:
 			if withWalls == False:
 				self.updateWallCoordinates(previousLocation, location)
 
+			# true or false to determine if collision update motion model is needed
 			collisionDetected = self.didCollide(previousLocation, location, withWalls)
-			#print 'Collision Detected: ', collisionDetected, location
 			
 			if collisionDetected and self.stepCount - self.lastCollision > self.collisionBuffer:
+				#update motion based on collision
 				wall = self.getWall(location)
-				#print "wall " , wall 
-				# Avoid repeat collision detections
 				forward.collide(collision, wall)
 				self.lastCollision = self.stepCount
 			else : 
+				#update motion based on no collision/ forward motion
 				forward.update(location)
 
+	#use this method when there is a collision to determine which wall the hexbug hit
+	#needed for motion model
 	def getWall(self, location):
 		
 		r = self.distanceBetween(location, self.rightWall)
@@ -83,7 +89,7 @@ class Tracker:
 
 		return wall
 
-
+	#call to determine if hexbug collided with the wall 
 	def didCollide(self, previousLocation, location, withWalls=False):
 		
 		if withWalls:
@@ -96,6 +102,7 @@ class Tracker:
 
 		return False
 
+	# determine if the robot has gone passed a wall
 	def isOutOfBounds(self, location):
 		return location[1] >= self.bottomWall[1] or \
 				location[1] <= self.topWall[1] or \
@@ -108,6 +115,9 @@ class Tracker:
 	    x2, y2 = point2
 	    return sqrt((x2 - x1) ** 2 + (y2 - y1) ** 2)
 
+	# method for hexbug to find walls
+	# wall values are updated each time the hexbug passes the currently set point, and 
+	# solidified when hexbug does not pass that point anymore (because hitting wall)
 	def updateWallCoordinates(self, previousLocation, location):
 		if location[0] > self.rightWall[0]:
 			self.rightWall[0] = location[0] #location[0]
@@ -125,5 +135,6 @@ class Tracker:
 			self.topWall[1] = location[1] #location[1]
 			#print "top wall", self.topWall
 
+	#returns the coordinates of the walls as the hexbug knows them to be
 	def getWallCoordinates(self):
 		return (self.leftWall, self.rightWall, self.topWall, self.bottomWall)

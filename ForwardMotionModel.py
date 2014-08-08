@@ -1,8 +1,10 @@
+#This file contains the forward motion model, for when the hexbug is moving and not colliding with the wall.
+
 from math import *
 from random import *
 import numpy
-from CircleKalmanFilter import *
-from KalmanFilter import *
+from CircleKalmanFilter import *	#used for curved  motion, hexbug does not always travel in a straight line
+from KalmanFilter import *			#used for straight motion 
 
 
 class ForwardMotionModel:
