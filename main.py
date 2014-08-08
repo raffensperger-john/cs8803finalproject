@@ -13,8 +13,12 @@ from Tracker import *
 #write the predictions into output text file
 def writeDatatoFile(filename, data):
 	file = open(filename, "w")
+	int_data = []
+	for i in data: 
+		i = [int(round(i[0])),int(round(i[1]))]
+		int_data.append(i)
 
-	file.write("\n".join(str(i) for i in data))
+	file.write("\n".join(str(i) for i in int_data))
 
 	file.close()
 
@@ -79,23 +83,24 @@ def main(argv):
 	data = [x for x in data if x != [-1,-1]]
 
 	testSteps = 63
-	testData = data[0:len(data)-testSteps]
-	predictData = data[len(testData):len(data)]
+	#testData = data[0:len(data)-testSteps]
+	#predictData = data[len(testData):len(data)]
 
 	#create tracker and run tracking/ set prediction results
 	tracker = Tracker([854, 480])
-	guess = tracker.trackRobot(testData, testSteps)
+	# guess = tracker.trackRobot(testData, testSteps)
+	guess = tracker.trackRobot(data, testSteps)
 	
 	#write predictions to file 
 	print 'Writing results to file \'predictions.txt\'...'
-	writeDatatoFile("actual.txt", predictData)
+	#writeDatatoFile("actual.txt", predictData)
 	writeDatatoFile("predictions.txt", guess)
 
-	print 'Error', calculateError(predictData, guess)
+	#print 'Error', calculateError(data, guess)
 
 	#plot graph 
-	plt.plot(*zip(*data))
-	plt.plot(*zip(*predictData))
+	# plt.plot(*zip(*data))
+	# plt.plot(*zip(*predictData))
 	plt.plot(*zip(*guess))
 	plt.gca().invert_yaxis()
 	plt.show()
