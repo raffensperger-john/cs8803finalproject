@@ -45,7 +45,7 @@ class Tracker:
 
 		#predict next steps 
 		print 'Predicting ', numStepsInFuture, ' steps ahead'
-		estimatedTrack = [previousLocation]
+		estimatedTrack = []
 		for i in range(numStepsInFuture):
 			guess = forward.getNextLocation()
 			self.doTrackingUpdate(previousLocation, guess, forward, collision, withWalls=True)
